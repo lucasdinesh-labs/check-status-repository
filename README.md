@@ -1,10 +1,23 @@
-# Workflow Run Check POC
+# GitHub Actions Check POCs
 
 This repository tests GitHub Actions check-run behavior for a pull request
 that adds `SKIP COMPONENT TESTS` after a successful Component Tests run.
 
 The workflows are intentionally standalone. They do not clone or use any SAP
 application code.
+
+## Merge Queue Unit Tests
+
+`Unit Tests` runs for both pull requests and GitHub's `merge_group` event.
+The latter checks GitHub's synthetic merge commit immediately before merging.
+
+The `queue-features.txt` fixture supports a deterministic queue test:
+
+- A PR that adds either `feature-a` or `feature-b` passes independently.
+- A synthetic commit containing both entries fails the unit test.
+
+This demonstrates why the merge queue must validate the combined changes, not
+only each pull request independently.
 
 ## Inherited Skip Behavior
 
