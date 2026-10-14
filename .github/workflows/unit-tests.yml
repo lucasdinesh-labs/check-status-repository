@@ -19,5 +19,9 @@ jobs:
       - name: Checkout the PR or synthetic merge commit
         uses: actions/checkout@v4
 
+      - name: Allow another PR to join the queue
+        if: github.event_name == 'merge_group'
+        run: sleep 60
+
       - name: Run unit tests
         run: bash scripts/queue-unit-tests.sh
