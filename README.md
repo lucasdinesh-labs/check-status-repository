@@ -16,3 +16,4 @@ skipped check.
 ## Chain Experiment
 
 Commit A: real Component Tests baseline.
+Commit B: inherited Component Tests result from Commit A.
