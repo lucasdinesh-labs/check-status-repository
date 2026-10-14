@@ -5,3 +5,10 @@ that adds `SKIP COMPONENT TESTS` after a successful Component Tests run.
 
 The workflows are intentionally standalone. They do not clone or use any SAP
 application code.
+
+## Inherited Skip Behavior
+
+When `SKIP COMPONENT TESTS` is present, the status seeder creates a current-SHA
+check from the immediately preceding Component Tests result. A preceding green
+check produces a green inherited check. Any other preceding result produces a
+skipped check.
