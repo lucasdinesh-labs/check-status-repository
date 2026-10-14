@@ -9,3 +9,5 @@ application code.
 ## POC State
 
 Baseline commit for the Component Tests required-check experiment.
+
+Second commit: `SKIP COMPONENT TESTS` is present before this commit is pushed.
