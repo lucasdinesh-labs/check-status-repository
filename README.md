@@ -19,3 +19,4 @@ Commit A: real Component Tests baseline.
 Commit B: inherited Component Tests result from Commit A.
 Commit C: inherited Component Tests result from Commit B.
 Commit D: skip label removed, real Component Tests run resumes.
+Commit E: inherited Component Tests result from Commit D.
