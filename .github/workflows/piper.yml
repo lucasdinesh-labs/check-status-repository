@@ -1,0 +1,17 @@
+name: Piper
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  piper:
+    if: "!github.event.pull_request.draft"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simulate a successful Piper build
+        run: echo "Piper completed for ${{ github.event.pull_request.head.sha }}"

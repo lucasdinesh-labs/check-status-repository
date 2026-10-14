@@ -1,0 +1,29 @@
+name: Component Tests Status Seeder
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master]
+
+permissions:
+  checks: write
+  contents: read
+
+jobs:
+  seed-component-tests-check:
+    if: >-
+      !github.event.pull_request.draft &&
+      !contains(github.event.pull_request.labels.*.name, 'SKIP COMPONENT TESTS')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Seed Component Tests check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/check-runs" \
+            -f name="Component Tests" \
+            -f head_sha="${HEAD_SHA}" \
+            -f status="queued" \
+            -f "output[title]=Waiting for Piper" \
+            -f "output[summary]=The POC will update this check after Piper succeeds."
