@@ -9,4 +9,9 @@ if [[ -f queue-fixtures/feature-c && -f queue-fixtures/feature-d ]]; then
   exit 1
 fi
 
+if [[ -f queue-fixtures/feature-e && -f queue-fixtures/feature-f ]]; then
+  echo '::error::feature-e and feature-f cannot be merged together'
+  exit 1
+fi
+
 echo 'Unit tests passed.'
