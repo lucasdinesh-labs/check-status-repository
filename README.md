@@ -25,3 +25,11 @@ When `SKIP COMPONENT TESTS` is present, the status seeder creates a current-SHA
 check from the immediately preceding Component Tests result. A preceding green
 check produces a green inherited check. Any other preceding result produces a
 skipped check.
+
+## Chain Experiment
+
+Commit A: real Component Tests baseline.
+Commit B: inherited Component Tests result from Commit A.
+Commit C: inherited Component Tests result from Commit B.
+Commit D: skip label removed, real Component Tests run resumes.
+Commit E: inherited Component Tests result from Commit D.
