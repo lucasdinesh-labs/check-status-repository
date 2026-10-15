@@ -27,13 +27,8 @@ jobs:
       - name: Run unit tests
         run: bash scripts/queue-unit-tests.sh
 
-  queue-validation-bypasses:
-    name: Queue validation bypasses
-    needs: unit-tests
-    if: always() && github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
-    steps:
       - name: Publish Piper and Component Tests bypasses
+        if: always() && github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.merge_group.head_sha }}
