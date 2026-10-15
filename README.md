@@ -19,6 +19,10 @@ The `queue-fixtures/` directory supports a deterministic queue test:
 This demonstrates why the merge queue must validate the combined changes, not
 only each pull request independently.
 
+The `master` branch requires the short `Unit Tests`, `Piper`, and `Component
+Tests` check-runs. Queue builds rerun only unit tests and publish the latter
+two as explicit bypasses.
+
 ## Inherited Skip Behavior
 
 When `SKIP COMPONENT TESTS` is present, the status seeder creates a current-SHA
