@@ -37,7 +37,7 @@ jobs:
           labels = json.load(sys.stdin)
           sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
           '; then
-            echo "SKIP COMPONENT TESTS is present. The status seeder owns the inherited check result."
+            echo "SKIP COMPONENT TESTS is present. No Component Tests check is created or updated."
             exit 0
           fi
 
