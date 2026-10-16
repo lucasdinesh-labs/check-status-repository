@@ -1,4 +1,4 @@
-name: Component Tests Status Seeder
+name: Component Tests
 
 on:
   pull_request:
