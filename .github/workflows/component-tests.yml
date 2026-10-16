@@ -56,8 +56,13 @@ jobs:
             exit 1
           fi
 
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SUMMARY=$'POC baseline run completed successfully.\n\n'
+          SUMMARY+="[Open the Component Tests run](${RUN_URL})"
+          SUMMARY+=$'\n\n<!-- component-tests-real-run: sha='"${HEAD_SHA}"$' url='"${RUN_URL}"$' -->'
+
           gh api -X PATCH "repos/${{ github.repository }}/check-runs/${CHECK_RUN_ID}" \
             -f status="completed" \
             -f conclusion="success" \
             -f "output[title]=Component tests passed" \
-            -f "output[summary]=POC baseline run completed successfully."
+            -f "output[summary]=${SUMMARY}"
