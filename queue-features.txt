@@ -1,2 +1,3 @@
 feature-a
 skip-seeder-api-poc
+component-tests-group-baseline
