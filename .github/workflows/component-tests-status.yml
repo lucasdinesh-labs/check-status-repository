@@ -8,6 +8,7 @@ on:
 permissions:
   checks: write
   contents: read
+  pull-requests: read
 
 jobs:
   seed-component-tests-check:
@@ -18,7 +19,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PREVIOUS_SHA: ${{ github.event.before || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           GLOBAL_SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'SKIP COMPONENT TESTS') }}
         run: |
           create_check() {
@@ -37,6 +38,44 @@ jobs:
             gh api "${args[@]}"
           }
 
+          find_last_real_component_test() {
+            local -a commits
+            local sha check summary conclusion source_sha source_url
+            local marker='<!-- component-tests-real-run: sha=([^[:space:]]+) url=([^[:space:]]+) -->'
+
+            mapfile -t commits < <(gh api \
+              "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits?per_page=100" \
+              --paginate --jq '.[].sha')
+
+            for ((index=${#commits[@]} - 1; index >= 0; index--)); do
+              sha="${commits[index]}"
+              [[ "${sha}" == "${HEAD_SHA}" ]] && continue
+
+              check=$(gh api \
+                "repos/${{ github.repository }}/commits/${sha}/check-runs?check_name=Component+Tests&per_page=100" \
+                --jq '[.check_runs[] | select(.app.slug == "github-actions" and .name == "Component Tests" and .status == "completed") | {id, conclusion, summary: (.output.summary // "")} ] | sort_by(.id) | last // empty' \
+                2>/dev/null || true)
+              [[ -z "${check}" ]] && continue
+
+              summary=$(jq -r '.summary' <<<"${check}")
+              if [[ "${summary}" =~ ${marker} ]]; then
+                conclusion=$(jq -r '.conclusion' <<<"${check}")
+                source_sha="${BASH_REMATCH[1]}"
+                source_url="${BASH_REMATCH[2]}"
+
+                if [[ "${conclusion}" == "success" ]]; then
+                  printf '%s\t%s\n' "${source_sha}" "${source_url}"
+                  return 0
+                fi
+
+                echo "Latest real Component Tests run (${source_sha:0:7}) concluded ${conclusion}; not reusing an older result." >&2
+                return 2
+              fi
+            done
+
+            return 1
+          }
+
           if [[ "${GLOBAL_SKIP}" != "true" ]]; then
             create_check "queued" "" \
               "Waiting for Piper" \
@@ -44,19 +83,26 @@ jobs:
             exit 0
           fi
 
-          PREVIOUS_CONCLUSION=""
-          if [[ -n "${PREVIOUS_SHA}" && "${PREVIOUS_SHA}" != "0000000000000000000000000000000000000000" ]]; then
-            PREVIOUS_CONCLUSION=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/check-runs?check_name=Component+Tests&per_page=100" \
-              --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.id) | last | select(.status == "completed") | .conclusion // empty' \
-              2>/dev/null || true)
-          fi
-
-          if [[ "${PREVIOUS_CONCLUSION}" == "success" ]]; then
+          PROVENANCE=""
+          if PROVENANCE=$(find_last_real_component_test); then
+            IFS=$'\t' read -r SOURCE_SHA SOURCE_RUN_URL <<<"${PROVENANCE}"
+            SUMMARY=$'SKIP COMPONENT TESTS is present.\n\n'
+            SUMMARY+="Component tests last passed for commit \`${SOURCE_SHA:0:7}\`."
+            SUMMARY+=$'\n\n'
+            SUMMARY+="[Open the successful Component Tests run](${SOURCE_RUN_URL})"
             create_check "completed" "success" \
-              "Component tests skipped, inherited from ${PREVIOUS_SHA:0:7}" \
-              "SKIP COMPONENT TESTS is present. The immediately preceding Component Tests check passed."
+              "Component tests skipped, reusing ${SOURCE_SHA:0:7}" \
+              "${SUMMARY}"
           else
+            SEARCH_STATUS=$?
+            if [[ "${SEARCH_STATUS}" == "2" ]]; then
+              TITLE="Component tests skipped after a failed real run"
+              SUMMARY="SKIP COMPONENT TESTS is present, but the latest real Component Tests run did not pass."
+            else
+              TITLE="Component tests skipped without a prior successful run"
+              SUMMARY="SKIP COMPONENT TESTS is present, but no prior successful Component Tests run was found in this PR."
+            fi
             create_check "completed" "skipped" \
-              "Component tests skipped" \
-              "SKIP COMPONENT TESTS is present, but the immediately preceding Component Tests check was not successful."
+              "${TITLE}" \
+              "${SUMMARY}"
           fi
