@@ -6,57 +6,14 @@ on:
     branches: [master]
 
 permissions:
-  checks: write
   contents: read
 
 jobs:
   seed-component-tests-check:
+    name: Component Tests
     if: "!github.event.pull_request.draft"
     runs-on: ubuntu-latest
     steps:
-      - name: Seed Component Tests check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PREVIOUS_SHA: ${{ github.event.before || '' }}
-          GLOBAL_SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'SKIP COMPONENT TESTS') }}
+      - name: Initialize Component Tests status
         run: |
-          create_check() {
-            local status="$1" conclusion="$2" title="$3" summary="$4"
-            local args=(
-              -X POST "repos/${{ github.repository }}/check-runs"
-              -f name="Component Tests"
-              -f head_sha="${HEAD_SHA}"
-              -f status="${status}"
-              -f "output[title]=${title}"
-              -f "output[summary]=${summary}"
-            )
-            if [[ -n "${conclusion}" ]]; then
-              args+=(-f "conclusion=${conclusion}")
-            fi
-            gh api "${args[@]}"
-          }
-
-          if [[ "${GLOBAL_SKIP}" != "true" ]]; then
-            create_check "queued" "" \
-              "Waiting for Piper" \
-              "The POC will update this check after Piper succeeds."
-            exit 0
-          fi
-
-          PREVIOUS_CONCLUSION=""
-          if [[ -n "${PREVIOUS_SHA}" && "${PREVIOUS_SHA}" != "0000000000000000000000000000000000000000" ]]; then
-            PREVIOUS_CONCLUSION=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/check-runs?check_name=Component+Tests&per_page=100" \
-              --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.id) | last | select(.status == "completed") | .conclusion // empty' \
-              2>/dev/null || true)
-          fi
-
-          if [[ "${PREVIOUS_CONCLUSION}" == "success" ]]; then
-            create_check "completed" "success" \
-              "Component tests skipped, inherited from ${PREVIOUS_SHA:0:7}" \
-              "SKIP COMPONENT TESTS is present. The immediately preceding Component Tests check passed."
-          else
-            create_check "completed" "skipped" \
-              "Component tests skipped" \
-              "SKIP COMPONENT TESTS is present, but the immediately preceding Component Tests check was not successful."
-          fi
+          echo "Component Tests check initialized in this workflow's native check suite."

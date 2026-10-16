@@ -6,6 +6,7 @@ on:
     types: [completed]
 
 permissions:
+  actions: read
   checks: write
   contents: read
   pull-requests: read
@@ -30,6 +31,72 @@ jobs:
             exit 0
           fi
 
+          find_native_check_run() {
+            local check_suite_id
+            for attempt in {1..12}; do
+              check_suite_id=$(gh api \
+                "repos/${{ github.repository }}/actions/workflows/component-tests-status.yml/runs?head_sha=${HEAD_SHA}&per_page=100" \
+                --jq '[.workflow_runs[] | select(.event == "pull_request") | .check_suite_id] | max // empty' \
+                2>/dev/null || true)
+              if [[ -n "${check_suite_id}" && "${check_suite_id}" != "null" ]]; then
+                CHECK_RUN_ID=$(gh api \
+                  "repos/${{ github.repository }}/check-suites/${check_suite_id}/check-runs?per_page=100" \
+                  --jq '[.check_runs[] | select(.name == "Component Tests" and .app.slug == "github-actions")] | .[0].id // empty' \
+                  2>/dev/null || true)
+                if [[ -n "${CHECK_RUN_ID}" && "${CHECK_RUN_ID}" != "null" ]]; then
+                  return
+                fi
+              fi
+              sleep 5
+            done
+            echo "::error::Could not find the native Component Tests check in the status workflow suite."
+            exit 1
+          }
+
+          patch_check() {
+            local conclusion="$1" title="$2" summary="$3"
+            gh api -X PATCH "repos/${{ github.repository }}/check-runs/${CHECK_RUN_ID}" \
+              -f status="completed" \
+              -f conclusion="${conclusion}" \
+              -f "output[title]=${title}" \
+              -f "output[summary]=${summary}"
+          }
+
+          find_last_real_component_test() {
+            local -a commits
+            local sha check summary conclusion source_sha source_url
+            local marker='<!-- component-tests-real-run: sha=([^[:space:]]+) url=([^[:space:]]+) -->'
+
+            mapfile -t commits < <(gh api \
+              "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits?per_page=100" \
+              --paginate --jq '.[].sha')
+
+            for ((index=${#commits[@]} - 1; index >= 0; index--)); do
+              sha="${commits[index]}"
+              [[ "${sha}" == "${HEAD_SHA}" ]] && continue
+              check=$(gh api \
+                "repos/${{ github.repository }}/commits/${sha}/check-runs?check_name=Component+Tests&per_page=100" \
+                --jq '[.check_runs[] | select(.app.slug == "github-actions" and .name == "Component Tests" and .status == "completed") | {id, conclusion, summary: (.output.summary // "")} ] | sort_by(.id) | last // empty' \
+                2>/dev/null || true)
+              [[ -z "${check}" ]] && continue
+
+              summary=$(jq -r '.summary' <<<"${check}")
+              if [[ "${summary}" =~ ${marker} ]]; then
+                conclusion=$(jq -r '.conclusion' <<<"${check}")
+                source_sha="${BASH_REMATCH[1]}"
+                source_url="${BASH_REMATCH[2]}"
+                if [[ "${conclusion}" == "success" ]]; then
+                  printf '%s\t%s\n' "${source_sha}" "${source_url}"
+                  return 0
+                fi
+                return 2
+              fi
+            done
+            return 1
+          }
+
+          find_native_check_run
+
           LABELS=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq '[.labels[].name]')
           if printf '%s' "${LABELS}" | python3 -c '
           import json
@@ -37,23 +104,25 @@ jobs:
           labels = json.load(sys.stdin)
           sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
           '; then
-            echo "SKIP COMPONENT TESTS is present. The status seeder owns the inherited check result."
-            exit 0
-          fi
-
-          CHECK_RUN_ID=""
-          for attempt in {1..12}; do
-            CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs?check_name=Component+Tests&per_page=10" \
-              --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.id) | last | .id // empty')
-            if [[ -n "${CHECK_RUN_ID}" ]]; then
-              break
+            PROVENANCE=""
+            if PROVENANCE=$(find_last_real_component_test); then
+              IFS=$'\t' read -r SOURCE_SHA SOURCE_RUN_URL <<<"${PROVENANCE}"
+              SUMMARY=$'SKIP COMPONENT TESTS is present.\n\n'
+              SUMMARY+="Component tests last passed for commit \`${SOURCE_SHA:0:7}\`."
+              SUMMARY+=$'\n\n'
+              SUMMARY+="[Open the successful Component Tests run](${SOURCE_RUN_URL})"
+              patch_check "success" "Component tests skipped, reusing ${SOURCE_SHA:0:7}" "${SUMMARY}"
+            else
+              SEARCH_STATUS=$?
+              if [[ "${SEARCH_STATUS}" == "2" ]]; then
+                patch_check "skipped" "Component tests skipped after a failed real run" \
+                  "SKIP COMPONENT TESTS is present, but the latest real Component Tests run did not pass."
+              else
+                patch_check "skipped" "Component tests skipped without a prior successful run" \
+                  "SKIP COMPONENT TESTS is present, but no prior successful Component Tests run was found in this PR."
+              fi
             fi
-            sleep 5
-          done
-
-          if [[ -z "${CHECK_RUN_ID}" ]]; then
-            echo "::error::No seeded Component Tests check was found for ${HEAD_SHA}."
-            exit 1
+            exit 0
           fi
 
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -61,8 +130,4 @@ jobs:
           SUMMARY+="[Open the Component Tests run](${RUN_URL})"
           SUMMARY+=$'\n\n<!-- component-tests-real-run: sha='"${HEAD_SHA}"$' url='"${RUN_URL}"$' -->'
 
-          gh api -X PATCH "repos/${{ github.repository }}/check-runs/${CHECK_RUN_ID}" \
-            -f status="completed" \
-            -f conclusion="success" \
-            -f "output[title]=Component tests passed" \
-            -f "output[summary]=${SUMMARY}"
+          patch_check "success" "Component tests passed" "${SUMMARY}"
