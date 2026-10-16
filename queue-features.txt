@@ -2,3 +2,4 @@ feature-a
 skip-seeder-api-poc
 component-tests-group-baseline
 component-tests-group-default-branch-baseline
+component-tests-group-skipped-sha
