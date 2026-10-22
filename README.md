@@ -32,8 +32,9 @@ publishes a green skipped status, preserving the existing merge behavior.
 
 ## Ready For CI/CD
 
-Piper and Component Tests react only to `labeled`, `synchronize`, `reopened`,
-and `ready_for_review` pull-request events when `Ready for CI/CD` is present.
-Only addition of that exact label starts a run for a `labeled` event. Component
-Tests uses the `Component Tests` commit-status context and reuses an existing
-green status for the same head SHA.
+Piper reacts only to `labeled`, `synchronize`, `reopened`, and
+`ready_for_review` pull-request events when `Ready for CI/CD` is present. Only
+addition of that exact label starts a run for a `labeled` event. Component
+Tests runs after a successful Piper workflow run, verifies that the label is
+still present, and uses the `Component Tests` commit-status context. It reuses
+an existing green status for the same head SHA.

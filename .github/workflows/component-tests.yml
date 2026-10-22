@@ -1,39 +1,58 @@
 name: Component Tests
 
 on:
-  pull_request:
-    types: [labeled, synchronize, reopened, ready_for_review]
-    branches: [master]
+  workflow_run:
+    workflows: [Piper]
+    types: [completed]
 
 permissions:
   contents: read
+  pull-requests: read
   statuses: write
 
 concurrency:
-  group: component-tests-${{ github.event.pull_request.head.sha }}
+  group: component-tests-${{ github.event.workflow_run.head_sha }}
 
 jobs:
   component-tests:
     if: >-
-      !github.event.pull_request.draft &&
-      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Publish Component Tests status
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PREVIOUS_SHA: ${{ github.event.before || '' }}
-          GLOBAL_SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'SKIP COMPONENT TESTS') }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
+          set -euo pipefail
+
           publish_status() {
             gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
               -f state="$1" \
               -f context="Component Tests" \
               -f description="$2"
           }
+
+          if [[ -z "${PR_NUMBER}" || "${PR_NUMBER}" == "null" ]]; then
+            echo "No associated pull request. Nothing to do."
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          LABELS=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq '[.labels[].name]')
+          if ! printf '%s' "${LABELS}" | python3 -c '
+          import json
+          import sys
+          labels = json.load(sys.stdin)
+          sys.exit(0 if "Ready for CI/CD" in labels else 1)
+          '; then
+            echo "Ready for CI/CD is not present. Nothing to do."
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
 
           CURRENT_STATE=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/status" \
             --jq '[.statuses[] | select(.context == "Component Tests") | .state] | first // empty')
@@ -43,9 +62,15 @@ jobs:
             exit 0
           fi
 
-          if [[ "${GLOBAL_SKIP}" == "true" ]]; then
+          if printf '%s' "${LABELS}" | python3 -c '
+          import json
+          import sys
+          labels = json.load(sys.stdin)
+          sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
+          '; then
+            PREVIOUS_SHA=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}" --jq '.parents[0].sha // empty')
             PREVIOUS_STATE=""
-            if [[ -n "${PREVIOUS_SHA}" && "${PREVIOUS_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            if [[ -n "${PREVIOUS_SHA}" ]]; then
               PREVIOUS_STATE=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/status" \
                 --jq '[.statuses[] | select(.context == "Component Tests") | .state] | first // empty')
             fi
@@ -64,13 +89,13 @@ jobs:
 
       - name: Simulate Component Tests
         if: ${{ steps.prepare.outputs.should_run == 'true' }}
-        run: echo "Component tests passed for ${{ github.event.pull_request.head.sha }}"
+        run: echo "Component tests passed for ${{ github.event.workflow_run.head_sha }}"
 
       - name: Complete Component Tests status
         if: ${{ steps.prepare.outputs.should_run == 'true' && success() }}
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
             -f state="success" \
@@ -81,7 +106,7 @@ jobs:
         if: ${{ steps.prepare.outputs.should_run == 'true' && failure() }}
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
             -f state="failure" \
