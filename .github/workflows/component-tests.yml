@@ -16,94 +16,50 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  statuses: write
-
-concurrency:
-  group: component-tests-${{ inputs.pr_number }}-${{ inputs.head_sha }}
 
 jobs:
   component-tests:
     name: Component Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Publish Component Tests status
+      - name: Determine Component Tests execution
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ inputs.head_sha }}
           PR_NUMBER: ${{ inputs.pr_number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
-          publish_status() {
-            gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
-              -f state="$1" \
-              -f context="Component Tests" \
-              -f description="$2" \
-              -f target_url="${RUN_URL}"
-          }
-
           LABELS=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}" --jq '[.labels[].name]')
-          CURRENT_STATE=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/status" \
-            --jq '[.statuses[] | select(.context == "Component Tests") | .state] | first // empty')
-          if [[ "${CURRENT_STATE}" == "success" ]]; then
-            echo "Component Tests is already successful for ${HEAD_SHA}. Reusing the green status."
-            echo "should_run=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          if printf '%s' "${LABELS}" | python3 -c '
+          if ! printf '%s' "${LABELS}" | python3 -c '
           import json
           import sys
           labels = json.load(sys.stdin)
           sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
           '; then
-            PREVIOUS_SHA=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}" --jq '.parents[0].sha // empty')
-            PREVIOUS_STATE=""
-            if [[ -n "${PREVIOUS_SHA}" ]]; then
-              PREVIOUS_STATE=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/status" \
-                --jq '[.statuses[] | select(.context == "Component Tests") | .state] | first // empty')
-            fi
-
-            if [[ "${PREVIOUS_STATE}" == "success" ]]; then
-              publish_status "success" "Skipped. Success inherited from ${PREVIOUS_SHA:0:7}."
-            else
-              publish_status "success" "Skipped. The preceding Component Tests status was not successful."
-            fi
-            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
-          publish_status "pending" "Component tests are running."
-          echo "should_run=true" >> "${GITHUB_OUTPUT}"
+          PREVIOUS_SHA=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}" --jq '.parents[0].sha // empty')
+          PREVIOUS_CONCLUSION=""
+          if [[ -n "${PREVIOUS_SHA}" ]]; then
+            PREVIOUS_CONCLUSION=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.app.slug == "github-actions" and .name == "Run CI / piper / component-tests / Component Tests") | sort_by(.id) | last | .conclusion // empty] | first')
+          fi
+
+          if [[ "${PREVIOUS_CONCLUSION}" == "success" ]]; then
+            echo "::notice::Component Tests skipped. Success inherited from ${PREVIOUS_SHA:0:7}."
+          else
+            echo "::notice::Component Tests skipped. The preceding Component Tests check was not successful."
+          fi
+          echo "skip=true" >> "${GITHUB_OUTPUT}"
 
       - name: Simulate Component Tests
-        if: ${{ steps.prepare.outputs.should_run == 'true' }}
+        if: steps.prepare.outputs.skip != 'true'
         run: echo "Component tests passed for image ${{ inputs.image_version }}"
 
-      - name: Complete Component Tests status
-        if: ${{ steps.prepare.outputs.should_run == 'true' && success() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ inputs.head_sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
-            -f state="success" \
-            -f context="Component Tests" \
-            -f description="Component tests passed." \
-            -f target_url="${RUN_URL}"
-
-      - name: Fail Component Tests status
-        if: ${{ steps.prepare.outputs.should_run == 'true' && failure() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ inputs.head_sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
-            -f state="failure" \
-            -f context="Component Tests" \
-            -f description="Component tests failed." \
-            -f target_url="${RUN_URL}"
+      - name: Report skipped Component Tests
+        if: steps.prepare.outputs.skip == 'true'
+        run: echo "Component tests skipped by label."

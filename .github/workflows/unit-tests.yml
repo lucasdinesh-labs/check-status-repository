@@ -53,33 +53,3 @@ jobs:
           publish_bypass "Run CI / unit-tests / Unit Tests"
           publish_bypass "Run CI / piper / Piper"
           publish_bypass "Run CI / piper / component-tests / Component Tests"
-
-  report-unit-tests-check:
-    name: Report Unit Tests
-    needs: unit-tests
-    if: always() && inputs.head_sha != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Publish Unit Tests check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ inputs.head_sha }}
-          RESULT: ${{ needs.unit-tests.result }}
-        run: |
-          if [[ "${RESULT}" == "success" ]]; then
-            conclusion=success
-            title="Unit tests passed"
-            summary="The unit tests completed successfully."
-          else
-            conclusion=failure
-            title="Unit tests failed"
-            summary="The unit tests did not complete successfully: ${RESULT}."
-          fi
-
-          gh api -X POST "repos/${{ github.repository }}/check-runs" \
-            -f name="Unit Tests" \
-            -f head_sha="${HEAD_SHA}" \
-            -f status="completed" \
-            -f conclusion="${conclusion}" \
-            -f "output[title]=${title}" \
-            -f "output[summary]=${summary}"
