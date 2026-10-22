@@ -1,21 +1,69 @@
 name: Piper
 
 on:
-  pull_request:
-    types: [labeled, synchronize, reopened, ready_for_review]
-    branches: [master]
+  workflow_call:
+    inputs:
+      head_sha:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
 
 permissions:
+  checks: write
   contents: read
+  pull-requests: read
+  statuses: write
 
 jobs:
   piper:
     name: Piper
-    if: >-
-      !github.event.pull_request.draft &&
-      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
     runs-on: ubuntu-latest
+    outputs:
+      image_version: ${{ steps.image.outputs.version }}
     steps:
       - name: Simulate a successful Piper build
-        run: echo "Piper completed for ${{ github.event.pull_request.head.sha }}"
+        run: echo "Piper completed for ${{ inputs.head_sha }}"
+
+      - id: image
+        name: Publish image version
+        run: echo "version=${{ inputs.head_sha }}" >> "${GITHUB_OUTPUT}"
+
+  report-piper-check:
+    name: Report Piper
+    needs: piper
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Piper check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          RESULT: ${{ needs.piper.result }}
+        run: |
+          if [[ "${RESULT}" == "success" ]]; then
+            conclusion=success
+            title="Piper passed"
+            summary="The Piper build completed successfully."
+          else
+            conclusion=failure
+            title="Piper failed"
+            summary="The Piper build did not complete successfully: ${RESULT}."
+          fi
+
+          gh api -X POST "repos/${{ github.repository }}/check-runs" \
+            -f name="Piper" \
+            -f head_sha="${HEAD_SHA}" \
+            -f status="completed" \
+            -f conclusion="${conclusion}" \
+            -f "output[title]=${title}" \
+            -f "output[summary]=${summary}"
+
+  component-tests:
+    needs: piper
+    uses: ./.github/workflows/component-tests.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+      image_version: ${{ needs.piper.outputs.image_version }}
+      pr_number: ${{ inputs.pr_number }}

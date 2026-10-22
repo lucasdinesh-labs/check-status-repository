@@ -1,0 +1,30 @@
+name: CI Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      head_sha:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+      pr_number: ${{ inputs.pr_number }}
+
+  piper:
+    uses: ./.github/workflows/piper.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+      pr_number: ${{ inputs.pr_number }}

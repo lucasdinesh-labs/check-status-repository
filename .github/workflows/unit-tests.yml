@@ -1,9 +1,14 @@
 name: Unit Tests
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master]
+  workflow_call:
+    inputs:
+      head_sha:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
   merge_group:
     types: [checks_requested]
 
@@ -14,11 +19,12 @@ permissions:
 jobs:
   unit-tests:
     name: Unit Tests
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the PR or synthetic merge commit
+      - name: Checkout the tested commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head_sha || github.event.merge_group.head_sha }}
 
       - name: Allow another PR to join the queue
         if: github.event_name == 'merge_group'
@@ -27,8 +33,8 @@ jobs:
       - name: Run unit tests
         run: bash scripts/queue-unit-tests.sh
 
-      - name: Publish Piper and Component Tests bypasses
-        if: always() && github.event_name == 'merge_group'
+      - name: Publish required check bypasses
+        if: success() && github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.merge_group.head_sha }}
@@ -44,5 +50,36 @@ jobs:
               -f "output[summary]=This validation passed on the pull request and is not rerun for the synthetic merge commit."
           }
 
-          publish_bypass "Piper"
-          publish_bypass "Component Tests"
+          publish_bypass "Run CI / unit-tests / Unit Tests"
+          publish_bypass "Run CI / piper / Piper"
+          publish_bypass "Run CI / piper / component-tests / Component Tests"
+
+  report-unit-tests-check:
+    name: Report Unit Tests
+    needs: unit-tests
+    if: always() && inputs.head_sha != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Unit Tests check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          RESULT: ${{ needs.unit-tests.result }}
+        run: |
+          if [[ "${RESULT}" == "success" ]]; then
+            conclusion=success
+            title="Unit tests passed"
+            summary="The unit tests completed successfully."
+          else
+            conclusion=failure
+            title="Unit tests failed"
+            summary="The unit tests did not complete successfully: ${RESULT}."
+          fi
+
+          gh api -X POST "repos/${{ github.repository }}/check-runs" \
+            -f name="Unit Tests" \
+            -f head_sha="${HEAD_SHA}" \
+            -f status="completed" \
+            -f conclusion="${conclusion}" \
+            -f "output[title]=${title}" \
+            -f "output[summary]=${summary}"
