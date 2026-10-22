@@ -56,7 +56,7 @@ jobs:
   report-unit-tests-check:
     name: Report Unit Tests
     needs: unit-tests
-    if: always() && github.event_name == 'workflow_call'
+    if: always() && inputs.head_sha != ''
     runs-on: ubuntu-latest
     steps:
       - name: Publish Unit Tests check
