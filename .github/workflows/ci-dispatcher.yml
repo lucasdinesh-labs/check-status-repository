@@ -43,10 +43,16 @@ jobs:
             PR=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}")
             CURRENT_DRAFT=$(printf '%s' "${PR}" | jq -r '.draft')
             CURRENT_HEAD_SHA=$(printf '%s' "${PR}" | jq -r '.head.sha')
+            PULL_REQUEST_ID=$(printf '%s' "${PR}" | jq -r '.node_id')
           }
 
           draft_pr() {
-            if gh api -X PATCH "repos/${{ github.repository }}/pulls/${PR_NUMBER}" -F draft=true >/dev/null; then
+            if gh api graphql -f query='
+            mutation($pullRequestId: ID!) {
+              convertPullRequestToDraft(input: {pullRequestId: $pullRequestId}) {
+                pullRequest { isDraft }
+              }
+            }' -f pullRequestId="${PULL_REQUEST_ID}" >/dev/null; then
               echo "::notice::Put PR #${PR_NUMBER} in draft."
               refresh_pr
               return
