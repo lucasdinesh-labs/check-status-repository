@@ -33,8 +33,8 @@ jobs:
       - name: Run unit tests
         run: bash scripts/queue-unit-tests.sh
 
-      - name: Publish Piper and Component Tests bypasses
-        if: always() && github.event_name == 'merge_group'
+      - name: Publish required check bypasses
+        if: success() && github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.merge_group.head_sha }}
@@ -50,8 +50,9 @@ jobs:
               -f "output[summary]=This validation passed on the pull request and is not rerun for the synthetic merge commit."
           }
 
-          publish_bypass "Piper"
-          publish_bypass "Component Tests"
+          publish_bypass "Run CI / unit-tests / Unit Tests"
+          publish_bypass "Run CI / piper / Piper"
+          publish_bypass "Run CI / piper / component-tests / Component Tests"
 
   report-unit-tests-check:
     name: Report Unit Tests
