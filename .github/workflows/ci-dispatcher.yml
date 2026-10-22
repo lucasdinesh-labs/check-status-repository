@@ -90,7 +90,7 @@ jobs:
           if [[ "${EVENT_ACTION}" != "ready_for_review" ]]; then
             WAS_DRAFTED=$(gh api -H "Accept: application/vnd.github+json" \
               "repos/${{ github.repository }}/issues/${PR_NUMBER}/timeline?per_page=100" \
-              --jq 'any(.[]; .event == "converted_to_draft")')
+              --jq 'any(.[]; .event == "convert_to_draft")')
             if [[ "${WAS_DRAFTED}" != "true" ]]; then
               draft_pr
               set_outputs false
