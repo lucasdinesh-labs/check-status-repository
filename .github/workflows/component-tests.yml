@@ -26,6 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
@@ -33,7 +34,8 @@ jobs:
             gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
               -f state="$1" \
               -f context="Component Tests" \
-              -f description="$2"
+              -f description="$2" \
+              -f target_url="${RUN_URL}"
           }
 
           if [[ -z "${PR_NUMBER}" || "${PR_NUMBER}" == "null" ]]; then
@@ -96,19 +98,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
             -f state="success" \
             -f context="Component Tests" \
-            -f description="Component tests passed."
+            -f description="Component tests passed." \
+            -f target_url="${RUN_URL}"
 
       - name: Fail Component Tests status
         if: ${{ steps.prepare.outputs.should_run == 'true' && failure() }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh api -X POST "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
             -f state="failure" \
             -f context="Component Tests" \
-            -f description="Component tests failed."
+            -f description="Component tests failed." \
+            -f target_url="${RUN_URL}"
