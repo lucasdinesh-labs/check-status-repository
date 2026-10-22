@@ -17,6 +17,20 @@ jobs:
   piper:
     name: Piper
     runs-on: ubuntu-latest
+    outputs:
+      image_version: ${{ steps.image.outputs.version }}
     steps:
       - name: Simulate a successful Piper build
         run: echo "Piper completed for ${{ inputs.head_sha }}"
+
+      - id: image
+        name: Publish image version
+        run: echo "version=${{ inputs.head_sha }}" >> "${GITHUB_OUTPUT}"
+
+  component-tests:
+    needs: piper
+    uses: ./.github/workflows/component-tests.yml
+    with:
+      head_sha: ${{ inputs.head_sha }}
+      image_version: ${{ needs.piper.outputs.image_version }}
+      pr_number: ${{ inputs.pr_number }}

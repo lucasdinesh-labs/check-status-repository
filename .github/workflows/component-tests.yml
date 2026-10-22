@@ -6,6 +6,9 @@ on:
       head_sha:
         required: true
         type: string
+      image_version:
+        required: true
+        type: string
       pr_number:
         required: true
         type: number
@@ -77,7 +80,7 @@ jobs:
 
       - name: Simulate Component Tests
         if: ${{ steps.prepare.outputs.should_run == 'true' }}
-        run: echo "Component tests passed for ${{ inputs.head_sha }}"
+        run: echo "Component tests passed for image ${{ inputs.image_version }}"
 
       - name: Complete Component Tests status
         if: ${{ steps.prepare.outputs.should_run == 'true' && success() }}

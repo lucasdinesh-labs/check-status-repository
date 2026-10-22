@@ -44,6 +44,9 @@ before dispatching. This prevents queued stale events from starting CI for an
 older commit. Piper, Unit Tests, and Component Tests are reusable workflows,
 so they are not individually triggered or skipped for unrelated PR events.
 
+Piper calls Component Tests after it publishes the image version. Component
+Tests receives only that immutable version as its dependency on Piper.
+
 The dispatcher requires a `CI_DISPATCHER_TOKEN` repository secret. GitHub's
 default Actions token cannot convert a pull request to draft. Use a fine-grained
 token limited to this repository with `Pull requests: Read and write`.
