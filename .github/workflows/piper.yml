@@ -6,11 +6,11 @@ on:
     branches: [master]
 
 permissions:
-  checks: write
   contents: read
 
 jobs:
   piper:
+    name: Piper
     if: >-
       !github.event.pull_request.draft &&
       contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
@@ -19,37 +19,3 @@ jobs:
     steps:
       - name: Simulate a successful Piper build
         run: echo "Piper completed for ${{ github.event.pull_request.head.sha }}"
-
-  report-piper-check:
-    name: Report Piper status
-    needs: piper
-    if: >-
-      always() &&
-      !github.event.pull_request.draft &&
-      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Publish Piper check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RESULT: ${{ needs.piper.result }}
-        run: |
-          if [[ "${RESULT}" == "success" ]]; then
-            conclusion=success
-            title="Piper passed"
-            summary="The real Piper build completed successfully."
-          else
-            conclusion=failure
-            title="Piper failed"
-            summary="The real Piper build did not complete successfully: ${RESULT}."
-          fi
-
-          gh api -X POST "repos/${{ github.repository }}/check-runs" \
-            -f name="Piper" \
-            -f head_sha="${HEAD_SHA}" \
-            -f status="completed" \
-            -f conclusion="${conclusion}" \
-            -f "output[title]=${title}" \
-            -f "output[summary]=${summary}"
