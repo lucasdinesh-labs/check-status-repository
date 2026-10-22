@@ -1,7 +1,7 @@
-# GitHub Actions Check POCs
+# GitHub Actions Status POCs
 
-This repository tests GitHub Actions check-run behavior for a pull request
-that adds `SKIP COMPONENT TESTS` after a successful Component Tests run.
+This repository tests GitHub Actions commit-status behavior for a pull request
+enabled with the `Ready for CI/CD` label.
 
 The workflows are intentionally standalone. They do not clone or use any SAP
 application code.
@@ -20,12 +20,20 @@ This demonstrates why the merge queue must validate the combined changes, not
 only each pull request independently.
 
 The `master` branch requires the short `Unit Tests`, `Piper`, and `Component
-Tests` check-runs. Queue builds rerun only unit tests and publish the latter
-two as explicit bypasses.
+Tests` contexts. Queue builds rerun only unit tests and publish the latter two
+as explicit bypasses.
 
 ## Inherited Skip Behavior
 
-When `SKIP COMPONENT TESTS` is present, the status seeder creates a current-SHA
-check from the immediately preceding Component Tests result. A preceding green
-check produces a green inherited check. Any other preceding result produces a
-skipped check.
+When `SKIP COMPONENT TESTS` is present, Component Tests creates a current-SHA
+status from the immediately preceding Component Tests result. A preceding green
+status produces a green inherited status. Any other preceding result also
+publishes a green skipped status, preserving the existing merge behavior.
+
+## Ready For CI/CD
+
+Piper and Component Tests react only to `labeled`, `synchronize`, `reopened`,
+and `ready_for_review` pull-request events when `Ready for CI/CD` is present.
+Only addition of that exact label starts a run for a `labeled` event. Component
+Tests uses the `Component Tests` commit-status context and reuses an existing
+green status for the same head SHA.

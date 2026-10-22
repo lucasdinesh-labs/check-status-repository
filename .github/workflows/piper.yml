@@ -2,7 +2,7 @@ name: Piper
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [labeled, synchronize, reopened, ready_for_review]
     branches: [master]
 
 permissions:
@@ -11,7 +11,10 @@ permissions:
 
 jobs:
   piper:
-    if: "!github.event.pull_request.draft"
+    if: >-
+      !github.event.pull_request.draft &&
+      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
     runs-on: ubuntu-latest
     steps:
       - name: Simulate a successful Piper build
@@ -20,7 +23,11 @@ jobs:
   report-piper-check:
     name: Report Piper status
     needs: piper
-    if: always() && !github.event.pull_request.draft
+    if: >-
+      always() &&
+      !github.event.pull_request.draft &&
+      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
     runs-on: ubuntu-latest
     steps:
       - name: Publish Piper check
