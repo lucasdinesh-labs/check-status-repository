@@ -16,7 +16,6 @@ concurrency:
 jobs:
   component-tests:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +25,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          PIPER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -56,6 +56,16 @@ jobs:
             exit 0
           fi
 
+          GLOBAL_SKIP=false
+          if printf '%s' "${LABELS}" | python3 -c '
+          import json
+          import sys
+          labels = json.load(sys.stdin)
+          sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
+          '; then
+            GLOBAL_SKIP=true
+          fi
+
           CURRENT_STATE=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}/status" \
             --jq '[.statuses[] | select(.context == "Component Tests") | .state] | first // empty')
           if [[ "${CURRENT_STATE}" == "success" ]]; then
@@ -64,12 +74,14 @@ jobs:
             exit 0
           fi
 
-          if printf '%s' "${LABELS}" | python3 -c '
-          import json
-          import sys
-          labels = json.load(sys.stdin)
-          sys.exit(0 if any(label.upper() == "SKIP COMPONENT TESTS" for label in labels) else 1)
-          '; then
+          # A skipped Piper run is valid only when the component tests are explicitly skipped.
+          if [[ "${PIPER_CONCLUSION}" != "success" ]] && { [[ "${PIPER_CONCLUSION}" != "skipped" ]] || [[ "${GLOBAL_SKIP}" != "true" ]]; }; then
+            echo "Piper concluded ${PIPER_CONCLUSION}. Nothing to do."
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ "${GLOBAL_SKIP}" == "true" ]]; then
             PREVIOUS_SHA=$(gh api "repos/${{ github.repository }}/commits/${HEAD_SHA}" --jq '.parents[0].sha // empty')
             PREVIOUS_STATE=""
             if [[ -n "${PREVIOUS_SHA}" ]]; then
