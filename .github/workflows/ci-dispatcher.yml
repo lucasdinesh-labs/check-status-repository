@@ -26,12 +26,17 @@ jobs:
     steps:
       - id: decide
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CI_DISPATCHER_TOKEN }}
           EVENT_ACTION: ${{ github.event.action }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::CI_DISPATCHER_TOKEN must be configured with pull requests: write permission."
+            exit 1
+          fi
 
           set_outputs() {
             echo "dispatch=$1" >> "${GITHUB_OUTPUT}"
