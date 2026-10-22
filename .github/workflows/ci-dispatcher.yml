@@ -46,7 +46,7 @@ jobs:
           }
 
           draft_pr() {
-            if gh api -X PATCH "repos/${{ github.repository }}/pulls/${PR_NUMBER}" -f draft=true >/dev/null; then
+            if gh api -X PATCH "repos/${{ github.repository }}/pulls/${PR_NUMBER}" -F draft=true >/dev/null; then
               echo "::notice::Put PR #${PR_NUMBER} in draft."
               refresh_pr
               return
