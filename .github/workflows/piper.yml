@@ -11,7 +11,7 @@ permissions:
 jobs:
   piper:
     name: >-
-      ${{ !github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') && (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD') && 'Piper' || 'CI/CD not requested' }}
+      ${{ github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') && (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD') && 'Piper' || 'CI/CD not requested' }}
     if: >-
       !github.event.pull_request.draft &&
       contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
