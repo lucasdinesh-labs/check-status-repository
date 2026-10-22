@@ -1,9 +1,14 @@
 name: Unit Tests
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [master]
+  workflow_call:
+    inputs:
+      head_sha:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
   merge_group:
     types: [checks_requested]
 
@@ -14,11 +19,12 @@ permissions:
 jobs:
   unit-tests:
     name: Unit Tests
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the PR or synthetic merge commit
+      - name: Checkout the tested commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head_sha || github.event.merge_group.head_sha }}
 
       - name: Allow another PR to join the queue
         if: github.event_name == 'merge_group'

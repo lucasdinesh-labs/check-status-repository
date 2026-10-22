@@ -1,0 +1,107 @@
+name: CI Dispatcher
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master]
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: ci-dispatcher-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: CI draft gate
+    runs-on: ubuntu-latest
+    outputs:
+      dispatch: ${{ steps.decide.outputs.dispatch }}
+      head_sha: ${{ steps.decide.outputs.head_sha }}
+      pr_number: ${{ steps.decide.outputs.pr_number }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          set_outputs() {
+            echo "dispatch=$1" >> "${GITHUB_OUTPUT}"
+            echo "head_sha=${CURRENT_HEAD_SHA}" >> "${GITHUB_OUTPUT}"
+            echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          }
+
+          refresh_pr() {
+            PR=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}")
+            CURRENT_DRAFT=$(printf '%s' "${PR}" | jq -r '.draft')
+            CURRENT_HEAD_SHA=$(printf '%s' "${PR}" | jq -r '.head.sha')
+          }
+
+          draft_pr() {
+            if gh api -X PATCH "repos/${{ github.repository }}/pulls/${PR_NUMBER}" -f draft=true >/dev/null; then
+              echo "::notice::Put PR #${PR_NUMBER} in draft."
+              refresh_pr
+              return
+            fi
+
+            refresh_pr
+            if [[ "${CURRENT_DRAFT}" == "true" ]]; then
+              echo "::notice::PR #${PR_NUMBER} is already draft after a concurrent update."
+              return
+            fi
+
+            echo "::error::Could not put PR #${PR_NUMBER} in draft."
+            exit 1
+          }
+
+          refresh_pr
+
+          if [[ "${EVENT_ACTION}" == "opened" ]]; then
+            draft_pr
+            set_outputs false
+            exit 0
+          fi
+
+          if [[ "${CURRENT_DRAFT}" == "true" ]]; then
+            echo "PR #${PR_NUMBER} is draft. CI is not dispatched."
+            set_outputs false
+            exit 0
+          fi
+
+          if [[ "${EVENT_ACTION}" != "ready_for_review" ]]; then
+            WAS_DRAFTED=$(gh api -H "Accept: application/vnd.github+json" \
+              "repos/${{ github.repository }}/issues/${PR_NUMBER}/timeline?per_page=100" \
+              --jq 'any(.[]; .event == "converted_to_draft")')
+            if [[ "${WAS_DRAFTED}" != "true" ]]; then
+              draft_pr
+              set_outputs false
+              exit 0
+            fi
+          fi
+
+          if [[ "${EVENT_HEAD_SHA}" != "${CURRENT_HEAD_SHA}" ]]; then
+            echo "::notice::Ignoring stale ${EVENT_ACTION} event for ${EVENT_HEAD_SHA}. Current head is ${CURRENT_HEAD_SHA}."
+            set_outputs false
+            exit 0
+          fi
+
+          echo "PR #${PR_NUMBER} is ready. Dispatching CI for ${CURRENT_HEAD_SHA}."
+          set_outputs true
+
+  run-ci:
+    name: Run CI
+    needs: gate
+    if: needs.gate.outputs.dispatch == 'true'
+    uses: ./.github/workflows/ci-orchestrator.yml
+    with:
+      head_sha: ${{ needs.gate.outputs.head_sha }}
+      pr_number: ${{ fromJSON(needs.gate.outputs.pr_number) }}
+    secrets: inherit

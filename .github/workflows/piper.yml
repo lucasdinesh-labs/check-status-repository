@@ -1,9 +1,14 @@
 name: Piper
 
 on:
-  pull_request:
-    types: [labeled, synchronize, reopened, ready_for_review]
-    branches: [master]
+  workflow_call:
+    inputs:
+      head_sha:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -11,11 +16,7 @@ permissions:
 jobs:
   piper:
     name: Piper
-    if: >-
-      !github.event.pull_request.draft &&
-      contains(github.event.pull_request.labels.*.name, 'Ready for CI/CD') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'Ready for CI/CD')
     runs-on: ubuntu-latest
     steps:
       - name: Simulate a successful Piper build
-        run: echo "Piper completed for ${{ github.event.pull_request.head.sha }}"
+        run: echo "Piper completed for ${{ inputs.head_sha }}"

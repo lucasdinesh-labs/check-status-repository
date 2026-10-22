@@ -1,14 +1,15 @@
 # GitHub Actions Status POCs
 
-This repository tests GitHub Actions commit-status behavior for a pull request
-enabled with the `Ready for CI/CD` label.
+This repository tests a draft-gate CI dispatcher and GitHub Actions
+commit-status behavior.
 
 The workflows are intentionally standalone. They do not clone or use any SAP
 application code.
 
 ## Merge Queue Unit Tests
 
-`Unit Tests` runs for both pull requests and GitHub's `merge_group` event.
+`Unit Tests` runs through the CI dispatcher for pull requests and directly for
+GitHub's `merge_group` event.
 The latter checks GitHub's synthetic merge commit immediately before merging.
 
 The `queue-fixtures/` directory supports a deterministic queue test:
@@ -30,11 +31,15 @@ status from the immediately preceding Component Tests result. A preceding green
 status produces a green inherited status. Any other preceding result also
 publishes a green skipped status, preserving the existing merge behavior.
 
-## Ready For CI/CD
+## Draft Gate Dispatcher
 
-Piper reacts only to `labeled`, `synchronize`, `reopened`, and
-`ready_for_review` pull-request events when `Ready for CI/CD` is present. Only
-addition of that exact label starts a run for a `labeled` event. Component
-Tests runs after a successful Piper workflow run, verifies that the label is
-still present, and uses the `Component Tests` commit-status context. It reuses
-an existing green status for the same head SHA.
+`CI Dispatcher` is the only workflow triggered by pull-request events. It puts
+new or uninitialized pull requests in draft and never dispatches CI while a PR
+is draft. When a previously drafted PR becomes ready for review, or receives a
+new commit while ready, it calls the reusable CI orchestrator with the current
+head SHA.
+
+The dispatcher is serialized per PR and verifies the current API head SHA
+before dispatching. This prevents queued stale events from starting CI for an
+older commit. Piper, Unit Tests, and Component Tests are reusable workflows,
+so they are not individually triggered or skipped for unrelated PR events.
