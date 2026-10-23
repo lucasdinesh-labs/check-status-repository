@@ -45,4 +45,4 @@ Covered cases:
 - Merge-queue validation runs Unit Tests on the synthetic merge commit and
   publishes the same three required nested check names as successful bypasses.
 
-Race validation revision one.
+Race validation revision two.
