@@ -24,9 +24,9 @@ flowchart TD
     ci --> piper --> component
 ```
 
-The required automatic checks are `Run CI / unit-tests / Unit Tests`,
-`Run CI / piper / Piper`, and
-`Run CI / piper / component-tests / Component Tests`.
+The required automatic checks are `CI / unit-tests / Unit Tests`,
+`CI / piper / Piper`, and
+`CI / piper / component-tests / Component Tests`.
 
 Covered cases:
 

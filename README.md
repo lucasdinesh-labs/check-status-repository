@@ -45,9 +45,9 @@ so they are not individually triggered or skipped for unrelated PR events.
 
 The required contexts are the automatic nested job checks:
 
-- `Run CI / unit-tests / Unit Tests`
-- `Run CI / piper / Piper`
-- `Run CI / piper / component-tests / Component Tests`
+- `CI / unit-tests / Unit Tests`
+- `CI / piper / Piper`
+- `CI / piper / component-tests / Component Tests`
 
 Piper calls Component Tests after it publishes the image version. Component
 Tests receives only that immutable version as its dependency on Piper.

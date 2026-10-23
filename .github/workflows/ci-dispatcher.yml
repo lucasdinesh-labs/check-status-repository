@@ -88,9 +88,17 @@ jobs:
           fi
 
           if [[ "${EVENT_ACTION}" != "ready_for_review" ]]; then
-            WAS_DRAFTED=$(gh api -H "Accept: application/vnd.github+json" \
-              "repos/${{ github.repository }}/issues/${PR_NUMBER}/timeline?per_page=100" \
-              --jq 'any(.[]; .event == "convert_to_draft")')
+            WAS_DRAFTED=$(gh api graphql -f query='
+            query($pullRequestId: ID!) {
+              node(id: $pullRequestId) {
+                ... on PullRequest {
+                  timelineItems(first: 1, itemTypes: [CONVERT_TO_DRAFT_EVENT]) {
+                    totalCount
+                  }
+                }
+              }
+            }' -f pullRequestId="${PULL_REQUEST_ID}" \
+              --jq '.data.node.timelineItems.totalCount > 0')
             if [[ "${WAS_DRAFTED}" != "true" ]]; then
               draft_pr
               set_outputs false
@@ -108,7 +116,7 @@ jobs:
           set_outputs true
 
   run-ci:
-    name: Run CI
+    name: CI
     needs: gate
     if: needs.gate.outputs.dispatch == 'true'
     uses: ./.github/workflows/ci-orchestrator.yml
