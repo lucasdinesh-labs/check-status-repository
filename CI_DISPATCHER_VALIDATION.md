@@ -45,6 +45,6 @@ Covered cases:
 - Merge-queue validation runs Unit Tests on the synthetic merge commit and
   publishes the same three required nested check names as successful bypasses.
 
-GraphQL provenance validation revision one.
+GraphQL provenance validation revision two.
 
 Race validation revision two.
