@@ -50,6 +50,6 @@ jobs:
               -f "output[summary]=This validation passed on the pull request and is not rerun for the synthetic merge commit."
           }
 
-          publish_bypass "Run CI / unit-tests / Unit Tests"
-          publish_bypass "Run CI / piper / Piper"
-          publish_bypass "Run CI / piper / component-tests / Component Tests"
+          publish_bypass "CI / unit-tests / Unit Tests"
+          publish_bypass "CI / piper / Piper"
+          publish_bypass "CI / piper / component-tests / Component Tests"

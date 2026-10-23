@@ -46,7 +46,7 @@ jobs:
           PREVIOUS_CONCLUSION=""
           if [[ -n "${PREVIOUS_SHA}" ]]; then
             PREVIOUS_CONCLUSION=$(gh api "repos/${{ github.repository }}/commits/${PREVIOUS_SHA}/check-runs?per_page=100" \
-              --jq '[.check_runs[] | select(.app.slug == "github-actions" and .name == "Run CI / piper / component-tests / Component Tests") | sort_by(.id) | last | .conclusion // empty] | first')
+              --jq '[.check_runs[] | select(.app.slug == "github-actions" and .name == "CI / piper / component-tests / Component Tests") | sort_by(.id) | last | .conclusion // empty] | first')
           fi
 
           if [[ "${PREVIOUS_CONCLUSION}" == "success" ]]; then

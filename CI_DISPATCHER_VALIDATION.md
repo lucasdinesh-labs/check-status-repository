@@ -24,9 +24,9 @@ flowchart TD
     ci --> piper --> component
 ```
 
-The required automatic checks are `Run CI / unit-tests / Unit Tests`,
-`Run CI / piper / Piper`, and
-`Run CI / piper / component-tests / Component Tests`.
+The required automatic checks are `CI / unit-tests / Unit Tests`,
+`CI / piper / Piper`, and
+`CI / piper / component-tests / Component Tests`.
 
 Covered cases:
 
@@ -44,5 +44,7 @@ Covered cases:
   events on a previously drafted ready PR do dispatch it.
 - Merge-queue validation runs Unit Tests on the synthetic merge commit and
   publishes the same three required nested check names as successful bypasses.
+
+GraphQL provenance validation revision two.
 
 Race validation revision two.
